@@ -1,0 +1,27 @@
+{
+  "name": "jikka-recipe",
+  "version": "1.0.0",
+  "description": "実家の味を保存するサービス - 親はLINEで入力、子はWebで閲覧",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@line/bot-sdk": "^9.8.0",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.4",
+    "next": "14.2.29",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.29",
+    "@types/react": "^18.3.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.8.3"
+  }
+}

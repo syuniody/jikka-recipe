@@ -24,6 +24,9 @@ declare global {
   }
 }
 
+// 招待専用LIFF ID（環境変数より優先）
+const INVITE_LIFF_ID = '2008939410-SzrbXSdf'
+
 export default function InvitePage() {
   const params = useParams()
   const token = params.token as string
@@ -42,7 +45,7 @@ export default function InvitePage() {
       if (typeof window === 'undefined' || !window.liff) return
       
       try {
-        const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+        const liffId = INVITE_LIFF_ID
         if (!liffId) {
           console.error('LIFF ID not configured')
           setLiffError('LIFF ID not configured')

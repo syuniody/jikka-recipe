@@ -51,13 +51,12 @@ export async function POST(request: Request) {
     }
 
     // Build invitation URL
-    const INVITE_LIFF_ID = '2008939410-SzrbXSdf'    const inviteUrl = `${baseUrl}/invite/${token}`
-    const inviteUrl = `https://liff.line.me/${INVITE_LIFF_ID}?liff.state=${token}`
-    return NextResponse.json({
+        // Build invitation URL using LIFF URL for LINE app
+        // This ensures LINE users open the invite in LINE's browser with LIFF support
+    const INVITE_LIFF_ID = '2008939410-SzrbXSdf'
+              const inviteUrl = `https://liff.line.me/${INVITE_LIFF_ID}/${token}`
       invitation,
       url: inviteUrl,
-    })
-  } catch (error) {
     console.error('Error in POST /api/invitations:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

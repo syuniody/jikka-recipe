@@ -50,14 +50,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
     }
 
-    // Build invitation URL
         // Build invitation URL using LIFF URL for LINE app
         // This ensures LINE users open the invite in LINE's browser with LIFF support
-    const INVITE_LIFF_ID = '2008939410-SzrbXSdf'
-              const inviteUrl = `https://liff.line.me/${INVITE_LIFF_ID}/${token}`
-      invitation,
-      url: inviteUrl,
+        const INVITE_LIFF_ID = '2008939410-SzrbXSdf'
+        const inviteUrl = `https://liff.line.me/${INVITE_LIFF_ID}/${token}`
+
+        // Return success response with invitation and URL
+        return NextResponse.json({ invitation, url: inviteUrl }, { status: 201 })
+
     console.error('Error in POST /api/invitations:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+
 }

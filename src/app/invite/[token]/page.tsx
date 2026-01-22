@@ -2,10 +2,26 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Script from 'next/script'
 
 interface InvitationInfo {
   familySpaceName: string
   expiresAt: string
+}
+
+interface LiffObject {
+  init: (config: { liffId: string }) => Promise<void>
+  isLoggedIn: () => boolean
+  login: (config?: { redirectUri?: string }) => void
+  getProfile: () => Promise<{ userId: string; displayName: string }>
+  closeWindow: () => void
+  isInClient: () => boolean
+}
+
+declare global {
+  interface Window {
+    liff?: LiffObject
+  }
 }
 
 export default function InvitePage() {
@@ -17,6 +33,60 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null)
   const [accepting, setAccepting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [liffReady, setLiffReady] = useState(false)
+  const [liffError, setLiffError] = useState<string | null>(null)
+
+  // Initialize LIFF
+  useEffect(() => {
+    const initLiff = async () => {
+      if (typeof window === 'undefined' || !window.liff) return
+      
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+        if (!liffId) {
+          console.error('LIFF ID not configured')
+          setLiffError('LIFF ID not configured')
+          return
+        }
+        
+        await window.liff.init({ liffId })
+        console.log('LIFF initialized successfully')
+        console.log('Is in LINE client:', window.liff.isInClient())
+        console.log('Is logged in:', window.liff.isLoggedIn())
+        setLiffReady(true)
+      } catch (err) {
+        console.error('LIFF init error:', err)
+        setLiffError('LIFF初期化エラー')
+      }
+    }
+
+    if (window.liff) {
+      initLiff()
+    }
+  }, [])
+
+  const handleLiffLoad = () => {
+    const initLiff = async () => {
+      if (!window.liff) return
+      
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+        if (!liffId) {
+          setLiffError('LIFF ID not configured')
+          return
+        }
+        
+        await window.liff.init({ liffId })
+        console.log('LIFF initialized after script load')
+        setLiffReady(true)
+      } catch (err) {
+        console.error('LIFF init error:', err)
+        setLiffError('LIFF初期化エラー')
+      }
+    }
+    
+    initLiff()
+  }
 
   useEffect(() => {
     async function loadInvitation() {
@@ -50,36 +120,30 @@ export default function InvitePage() {
     setError(null)
 
     try {
-      // Check if LIFF is available (opened from LINE)
       let lineUserId: string | null = null
       let displayName: string | null = null
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const windowWithLiff = window as any
-      if (typeof window !== 'undefined' && windowWithLiff.liff) {
-        const liff = windowWithLiff.liff as { 
-          isLoggedIn: () => boolean; 
-          login: () => void;
-          getProfile: () => Promise<{ userId: string; displayName: string }>
-        }
+      if (liffReady && window.liff) {
+        console.log('Using LIFF for authentication')
         
-        if (!liff.isLoggedIn()) {
-          liff.login()
+        if (!window.liff.isLoggedIn()) {
+          console.log('Not logged in, redirecting to LINE login')
+          window.liff.login({ redirectUri: window.location.href })
           return
         }
 
-        const profile = await liff.getProfile()
+        const profile = await window.liff.getProfile()
+        console.log('Got LINE profile:', profile.displayName, profile.userId)
         lineUserId = profile.userId
         displayName = profile.displayName
       } else {
-        // For demo/testing, prompt for name
-        displayName = prompt('お名前を入力してください（LINE連携時は自動取得されます）')
+        console.log('LIFF not available, using fallback')
+        displayName = prompt('お名前を入力してください（LINEアプリから開くと自動取得されます）')
         if (!displayName) {
           setError('名前を入力してください')
           setAccepting(false)
           return
         }
-        // Generate a mock LINE user ID for testing
         lineUserId = `test_${Date.now()}`
       }
 
@@ -101,13 +165,13 @@ export default function InvitePage() {
 
       setSuccess(true)
 
-      // Close LIFF if available
-      if (typeof window !== 'undefined' && (window as { liff?: { closeWindow: () => void } }).liff) {
+      if (liffReady && window.liff?.isInClient()) {
         setTimeout(() => {
-          (window as { liff?: { closeWindow: () => void } }).liff?.closeWindow()
+          window.liff?.closeWindow()
         }, 2000)
       }
-    } catch {
+    } catch (err) {
+      console.error('Accept error:', err)
       setError('参加に失敗しました')
     } finally {
       setAccepting(false)
@@ -116,85 +180,115 @@ export default function InvitePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
-      </div>
+      <>
+        <Script 
+          src="https://static.line-scdn.net/liff/edge/2/sdk.js" 
+          onLoad={handleLiffLoad}
+        />
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+        </div>
+      </>
     )
   }
 
   if (error && !invitation) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
-        <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-xl font-bold text-gray-900">招待リンクエラー</h1>
-          <p className="mt-2 text-gray-600">{error}</p>
-          <p className="mt-4 text-sm text-gray-500">
-            新しい招待リンクを発行してもらってください
-          </p>
+      <>
+        <Script 
+          src="https://static.line-scdn.net/liff/edge/2/sdk.js" 
+          onLoad={handleLiffLoad}
+        />
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
+          <div className="text-center">
+            <div className="text-6xl mb-4">❌</div>
+            <h1 className="text-xl font-bold text-gray-900">招待リンクエラー</h1>
+            <p className="mt-2 text-gray-600">{error}</p>
+            <p className="mt-4 text-sm text-gray-500">
+              新しい招待リンクを発行してもらってください
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-xl font-bold text-gray-900">参加完了！</h1>
-          <p className="mt-2 text-gray-600">
-            {invitation?.familySpaceName}に参加しました
-          </p>
-          <p className="mt-4 text-sm text-gray-500">
-            LINEで「開始」と送信すると料理の記録を始められます
-          </p>
+      <>
+        <Script 
+          src="https://static.line-scdn.net/liff/edge/2/sdk.js" 
+          onLoad={handleLiffLoad}
+        />
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <h1 className="text-xl font-bold text-gray-900">参加完了！</h1>
+            <p className="mt-2 text-gray-600">
+              {invitation?.familySpaceName}に参加しました
+            </p>
+            <p className="mt-4 text-sm text-gray-500">
+              LINEで「開始」と送信すると料理の記録を始められます
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="text-6xl mb-4">🍳</div>
-          <h1 className="text-2xl font-bold text-gray-900">実家の味</h1>
-          <p className="mt-2 text-gray-600">家族の料理を保存するサービス</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-center mb-4">招待されています</h2>
-          
-          <div className="bg-orange-50 rounded-xl p-4 mb-6 text-center">
-            <p className="text-sm text-gray-600">家族スペース</p>
-            <p className="text-xl font-bold text-orange-700">{invitation?.familySpaceName}</p>
+    <>
+      <Script 
+        src="https://static.line-scdn.net/liff/edge/2/sdk.js" 
+        onLoad={handleLiffLoad}
+      />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-orange-50 to-white px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="text-6xl mb-4">🍳</div>
+            <h1 className="text-2xl font-bold text-gray-900">実家の味</h1>
+            <p className="mt-2 text-gray-600">家族の料理を保存するサービス</p>
           </div>
 
-          <p className="text-sm text-gray-600 mb-6 text-center">
-            この家族スペースに参加すると、料理の記録を
-            LINEで行い、家族と共有できます。
-          </p>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-              {error}
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-center mb-4">招待されています</h2>
+            
+            <div className="bg-orange-50 rounded-xl p-4 mb-6 text-center">
+              <p className="text-sm text-gray-600">家族スペース</p>
+              <p className="text-xl font-bold text-orange-700">{invitation?.familySpaceName}</p>
             </div>
-          )}
 
-          <button
-            onClick={handleAccept}
-            disabled={accepting}
-            className="w-full py-3 px-4 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {accepting ? '参加中...' : 'LINEで参加する'}
-          </button>
+            <p className="text-sm text-gray-600 mb-6 text-center">
+              この家族スペースに参加すると、料理の記録を
+              LINEで行い、家族と共有できます。
+            </p>
 
-          <p className="mt-4 text-xs text-gray-500 text-center">
-            有効期限: {invitation?.expiresAt ? new Date(invitation.expiresAt).toLocaleDateString('ja-JP') : '不明'}
-          </p>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+
+            {liffError && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-700 text-sm">
+                {liffError}
+              </div>
+            )}
+
+            <button
+              onClick={handleAccept}
+              disabled={accepting}
+              className="w-full py-3 px-4 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {accepting ? '参加中...' : 'LINEで参加する'}
+            </button>
+
+            <p className="mt-4 text-xs text-gray-500 text-center">
+              有効期限: {invitation?.expiresAt ? new Date(invitation.expiresAt).toLocaleDateString('ja-JP') : '不明'}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

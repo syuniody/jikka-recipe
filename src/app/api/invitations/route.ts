@@ -51,9 +51,8 @@ export async function POST(request: Request) {
     }
 
     // Build invitation URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const inviteUrl = `${baseUrl}/invite/${token}`
-
+    const INVITE_LIFF_ID = '2008939410-SzrbXSdf'    const inviteUrl = `${baseUrl}/invite/${token}`
+    const inviteUrl = `https://liff.line.me/${INVITE_LIFF_ID}?liff.state=${token}`
     return NextResponse.json({
       invitation,
       url: inviteUrl,

@@ -57,9 +57,9 @@ export async function POST(request: Request) {
 
         // Return success response with invitation and URL
         return NextResponse.json({ invitation, url: inviteUrl }, { status: 201 })
+  } catch (error) {
 
     console.error('Error in POST /api/invitations:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
-}
